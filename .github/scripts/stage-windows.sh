@@ -12,10 +12,20 @@ export CXX="${CXX:-g++}"
 export GOFLAGS="${GOFLAGS:--p=2}"
 
 if ! command -v go >/dev/null 2>&1; then
-  if [[ -x /c/Program\ Files/Go/bin/go.exe ]]; then
-    export PATH="/c/Program Files/Go/bin:$PATH"
+  if [[ -n ${GOROOT:-} ]]; then
+    groot=$(cygpath -u "$GOROOT")
+    export PATH="$groot/bin:$PATH"
   fi
 fi
+if ! command -v go >/dev/null 2>&1; then
+  for c in /c/hostedtoolcache/windows/go/*/x64/bin "/c/Program Files/Go/bin"; do
+    if [[ -x $c/go.exe || -x $c/go ]]; then
+      export PATH="$c:$PATH"
+      break
+    fi
+  done
+fi
+command -v go
 go version
 pkg-config --exists Qt6Widgets Qt6Qml
 pkg-config --modversion Qt6Core Qt6Qml
