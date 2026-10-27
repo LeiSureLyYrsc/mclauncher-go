@@ -113,10 +113,10 @@ jobs:
           restore-keys: windows-miqt-
       - name: Download modules
         timeout-minutes: 5
-        shell: msys2 {0}
+        shell: pwsh
         run: |
-          if [[ -n ${GOROOT:-} ]]; then export PATH="$(cygpath -u "$GOROOT")/bin:$PATH"; fi
           go version
+          go env GOPATH GOMODCACHE
           go mod download -x
       - name: Build
         timeout-minutes: 35

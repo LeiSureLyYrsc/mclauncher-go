@@ -13,15 +13,25 @@ export CGO_CFLAGS="${CGO_CFLAGS:--O0}"
 export CGO_CXXFLAGS="${CGO_CXXFLAGS:--O0}"
 unset GOFLAGS
 
+# setup-go puts go.exe on the Windows PATH. MSYS2 does not keep that entry,
+# and it also uses a different HOME, so pin the module cache to the Windows
+# user profile that the download step already filled.
+if [[ -n ${USERPROFILE:-} ]]; then
+  export GOPATH="$(cygpath -u "$USERPROFILE")/go"
+  export GOCACHE="$(cygpath -u "${LOCALAPPDATA:-$USERPROFILE/AppData/Local}")/go-build"
+  export GOMODCACHE="$GOPATH/pkg/mod"
+fi
 if ! command -v go >/dev/null 2>&1; then
-  if [[ -n ${GOROOT:-} ]]; then
-    groot=$(cygpath -u "$GOROOT")
-    export PATH="$groot/bin:$PATH"
+  win=$(cmd.exe //c "where.exe go" 2>/dev/null | tr -d '\r' | head -n 1 || true)
+  if [[ -n ${win:-} ]]; then
+    unix=$(cygpath -u "$win")
+    export PATH="$(dirname "$unix"):$PATH"
   fi
 fi
 if ! command -v go >/dev/null 2>&1; then
-  for c in /c/hostedtoolcache/windows/go/*/x64/bin "/c/Program Files/Go/bin"; do
-    if [[ -x $c/go.exe || -x $c/go ]]; then
+  shopt -s nullglob
+  for c in /c/hostedtoolcache/windows/go/*/x64/bin /d/hostedtoolcache/windows/go/*/x64/bin; do
+    if [[ -x $c/go.exe ]]; then
       export PATH="$c:$PATH"
       break
     fi
