@@ -11,12 +11,19 @@ rm -rf "$stage"
 mkdir -p "$stage/lib" "$stage/plugins" "$stage/qml" "$stage/assets"
 
 export CGO_ENABLED=0
+echo "== cli $(date -u +%H:%M:%S) =="
 go build -trimpath -ldflags "-s -w" -o "$stage/mclauncher-cli" ./cmd/mclauncher-cli
 
+# miqt's Qt binding is hundreds of generated C++ files. -O2 makes that look
+# stuck; -O0 is enough for a launcher and finishes on a 4-core runner.
 export CGO_ENABLED=1
-go build -trimpath -p 2 \
+export CGO_CFLAGS="${CGO_CFLAGS:--O0}"
+export CGO_CXXFLAGS="${CGO_CXXFLAGS:--O0}"
+echo "== ui $(date -u +%H:%M:%S) jobs=$(nproc) =="
+go build -trimpath -v -p "$(nproc)" \
   -ldflags '-s -w -extldflags "-Wl,-rpath,$ORIGIN/lib"' \
   -o "$stage/mclauncher" ./cmd/mclauncher
+echo "== ui done $(date -u +%H:%M:%S) =="
 
 cp -a assets/qml assets/skins "$stage/assets/"
 

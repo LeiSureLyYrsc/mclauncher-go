@@ -9,7 +9,9 @@ cd "$root"
 export CGO_ENABLED=1
 export CC="${CC:-gcc}"
 export CXX="${CXX:-g++}"
-export GOFLAGS="${GOFLAGS:--p=2}"
+export CGO_CFLAGS="${CGO_CFLAGS:--O0}"
+export CGO_CXXFLAGS="${CGO_CXXFLAGS:--O0}"
+unset GOFLAGS
 
 if ! command -v go >/dev/null 2>&1; then
   if [[ -n ${GOROOT:-} ]]; then
@@ -34,8 +36,12 @@ stage=dist/windows
 rm -rf "$stage"
 mkdir -p "$stage/assets"
 
+echo "== cli $(date -u +%H:%M:%S) =="
 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o "$stage/mclauncher-cli.exe" ./cmd/mclauncher-cli
-go build -trimpath -ldflags "-s -w -H windowsgui" -o "$stage/mclauncher.exe" ./cmd/mclauncher
+jobs=$(nproc 2>/dev/null || echo 4)
+echo "== ui $(date -u +%H:%M:%S) jobs=$jobs =="
+go build -trimpath -v -p "$jobs" -ldflags "-s -w -H windowsgui" -o "$stage/mclauncher.exe" ./cmd/mclauncher
+echo "== ui done $(date -u +%H:%M:%S) =="
 
 cp -a assets/qml assets/skins "$stage/assets/"
 

@@ -51,7 +51,21 @@ jobs:
             qml6-module-qtquick-window \
             qml6-module-qtqml \
             qml6-module-qtqml-workerscript
+      - name: Cache compile
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: linux-miqt-${{ hashFiles('go.sum') }}
+          restore-keys: linux-miqt-
+      - name: Download modules
+        timeout-minutes: 5
+        run: |
+          echo "proxy ${GOPROXY:-default}"
+          go mod download -x
       - name: Build
+        timeout-minutes: 25
         run: bash .github/scripts/stage-linux.sh
       - uses: actions/upload-artifact@v4
         with:
@@ -80,7 +94,32 @@ jobs:
         with:
           go-version: "1.22.x"
           cache: true
+      - name: Keep Defender off the module cache
+        shell: pwsh
+        run: |
+          $paths = @(
+            "$env:USERPROFILE\go",
+            "$env:LOCALAPPDATA\go-build",
+            "${{ github.workspace }}"
+          )
+          Add-MpPreference -ExclusionPath $paths
+      - name: Cache compile
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\AppData\Local\go-build
+            ~\go\pkg\mod
+          key: windows-miqt-${{ hashFiles('go.sum') }}
+          restore-keys: windows-miqt-
+      - name: Download modules
+        timeout-minutes: 5
+        shell: msys2 {0}
+        run: |
+          if [[ -n ${GOROOT:-} ]]; then export PATH="$(cygpath -u "$GOROOT")/bin:$PATH"; fi
+          go version
+          go mod download -x
       - name: Build
+        timeout-minutes: 35
         shell: msys2 {0}
         run: bash .github/scripts/stage-windows.sh
       - uses: actions/upload-artifact@v4
