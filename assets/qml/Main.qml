@@ -287,13 +287,13 @@ Window {
                     text: "按系统剩余内存，最大 1300M，最小 500M。如需要更大的内存,请手动设置。"
                     color: "#355"
                 }
-                Label { text: "java路径"; font.bold: true }
+                Label { text: "java路径（留空则按版本自动嗅探）"; font.bold: true }
                 Row {
                     spacing: 6
                     TextField {
                         id: javaField
                         width: 320
-                        placeholderText: "javaw.exe"
+                        placeholderText: "自动嗅探"
                         Component.onCompleted: text = app.javaPath
                         onTextEdited: app.javaPath = text
                     }
@@ -324,37 +324,53 @@ Window {
                     Label { text: "调试模式"; anchors.verticalCenter: parent.verticalCenter }
                 }
                 Label { text: "开启调试模式将以java.exe启动minecraft,并且在启动器目录生成输出日志.txt"; color: "#355"; width: parent.width; wrapMode: Text.WordWrap }
-                Label { text: "登录方式"; font.bold: true }
+                Label { text: "登录"; font.bold: true }
+                Label { text: "不填任何账号就是离线。外置登录走 Authlib Injector。微软登录稍后做。"; color: "#355"; width: parent.width; wrapMode: Text.WordWrap }
                 ComboBox {
+                    id: authMode
                     width: parent.width
-                    model: ["离线", "Yggdrasil 账号", "微软正版"]
-                    currentIndex: app.authMode === "yggdrasil" ? 1 : (app.authMode === "microsoft" ? 2 : 0)
-                    onActivated: function (i) { app.authMode = ["offline", "yggdrasil", "microsoft"][i] }
+                    model: ["离线", "外置登录"]
+                    currentIndex: app.authMode === "authlib" || app.authMode === "yggdrasil" ? 1 : 0
+                    onActivated: function (i) { app.authMode = i === 1 ? "authlib" : "offline" }
                 }
-                TextField {
+                Column {
                     width: parent.width
-                    placeholderText: "验证服务器"
-                    Component.onCompleted: text = app.yggdrasil
-                    onTextEdited: app.yggdrasil = text
+                    spacing: 8
+                    visible: authMode.currentIndex === 1
+                    TextField {
+                        width: parent.width
+                        placeholderText: "验证服务器，例如 https://littleskin.cn/api/yggdrasil"
+                        Component.onCompleted: text = app.yggdrasil
+                        onTextEdited: app.yggdrasil = text
+                    }
+                    TextField {
+                        width: parent.width
+                        placeholderText: "账号邮箱"
+                        Component.onCompleted: text = app.email
+                        onTextEdited: app.email = text
+                    }
+                    TextField { width: parent.width; placeholderText: "密码（不会保存）"; echoMode: TextInput.Password; onTextEdited: app.password = text }
+                    Row {
+                        spacing: 6
+                        TextField {
+                            id: authlibField
+                            width: 280
+                            placeholderText: "authlib-injector.jar，可留空自动下载"
+                            Component.onCompleted: text = app.authlib
+                            onTextEdited: app.authlib = text
+                        }
+                        Button { text: "浏览"; onClicked: app.cmd = "browseAuthlib" }
+                        Button { text: "下载"; onClicked: app.cmd = "fetchAuthlib" }
+                    }
+                    Button { text: "外置登录"; onClicked: app.cmd = "login" }
                 }
-                TextField {
-                    width: parent.width
-                    placeholderText: "帐号邮箱"
-                    Component.onCompleted: text = app.email
-                    onTextEdited: app.email = text
-                }
-                TextField { width: parent.width; placeholderText: "密码（不会保存）"; echoMode: TextInput.Password; onTextEdited: app.password = text }
-                Row {
-                    spacing: 6
-                    Button { text: "正版登录测试"; onClicked: app.cmd = "login" }
-                    Button { text: "删除正版信息"; onClicked: app.cmd = "clearLogin" }
-                    Button { text: "导入旧版本"; onClicked: app.cmd = "importLegacy" }
-                }
+                Button { text: "清除登录，改回离线"; onClicked: app.cmd = "clearLogin" }
                 Row {
                     spacing: 6
                     TextField { id: renameField; width: 220; placeholderText: "输入版本名称" }
                     Button { text: "重命名"; onClicked: app.cmd = "rename:" + renameField.text }
                     Button { text: "删除选中游戏"; onClicked: app.cmd = "removeVersion" }
+                    Button { text: "导入旧版本"; onClicked: app.cmd = "importLegacy" }
                 }
                 Row {
                     spacing: 6
@@ -372,6 +388,8 @@ Window {
                     nameField.text = value
                 if (key === "javaPath" && javaField.text !== String(value))
                     javaField.text = value
+                if (key === "authlib" && authlibField.text !== String(value))
+                    authlibField.text = value
                 if (key === "gameDir" && dirField.text !== String(value))
                     dirField.text = value
                 if (key === "memoryMB" && memField.text !== String(value))
@@ -398,21 +416,22 @@ Window {
             Row {
                 spacing: 6
                 Button {
-                    text: "官方原版"
-                    onClicked: { app.remoteFilter = "release"; app.cmd = "reloadRemote" }
+                    text: "全部版本"
+                    onClicked: app.remoteFilter = "all"
                 }
                 Button {
-                    text: "快照预览版"
-                    onClicked: { app.remoteFilter = "snapshot"; app.cmd = "reloadRemote" }
+                    text: "正式版"
+                    onClicked: app.remoteFilter = "release"
                 }
                 Button {
-                    text: "Forge"
-                    onClicked: app.remoteFilter = "forge"
+                    text: "快照"
+                    onClicked: app.remoteFilter = "snapshot"
                 }
                 Button {
-                    text: "简单整合"
-                    onClicked: app.remoteFilter = "simple"
+                    text: "远古"
+                    onClicked: app.remoteFilter = "old"
                 }
+                Button { text: "刷新"; onClicked: app.cmd = "reloadRemote" }
             }
             ListView {
                 id: remoteList
@@ -432,7 +451,7 @@ Window {
                 width: parent.width
                 wrapMode: Text.WordWrap
                 color: "#355"
-                text: "2014 年的 updatemc.mcsky.net 已经关闭。官方原版和快照走现在的 piston-meta。Forge 请自己放进 versions。"
+                text: "列表来自 BMCLAPI，包含正式版、快照和远古版。选中后点确定就会安装，更新游戏会重下当前选中的版本。"
             }
             Row {
                 spacing: 6

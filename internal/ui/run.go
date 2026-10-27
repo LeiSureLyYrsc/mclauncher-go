@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -56,10 +57,7 @@ func Run() error {
 	if len(engine.RootObjects()) == 0 {
 		return fmt.Errorf("QML 没有加载: %s", qmlPath)
 	}
-	if cfg.FirstRun {
-		app.setStr("panel", "setup")
-	}
-	go app.loadRemote()
+	go a.loadRemote()
 	qt.QApplication_Exec()
 	return nil
 }
@@ -78,6 +76,7 @@ func (a *App) publish() {
 	a.setStr("assetsUrl", fileURL(findDir("skins")))
 	a.setStr("email", c.Email)
 	a.setStr("yggdrasil", c.YggdrasilRoot)
+	a.setStr("authlib", c.AuthlibAgent)
 	a.setStr("authMode", c.AuthMode)
 	a.setBool("firstRun", c.FirstRun)
 	a.setStr("status", "就绪")
@@ -85,7 +84,7 @@ func (a *App) publish() {
 	a.setBool("busy", false)
 	a.setStr("panel", "")
 	a.setStr("log", "")
-	a.setStr("remoteFilter", "release")
+	a.setStr("remoteFilter", "all")
 	a.setInt("remoteIndex", 0)
 	a.setStr("cmd", "")
 	a.refreshLocal()
@@ -124,6 +123,8 @@ func (a *App) onChanged(key string, value *qt.QVariant) {
 		a.cfg.Email = value.ToString()
 	case "yggdrasil":
 		a.cfg.YggdrasilRoot = value.ToString()
+	case "authlib":
+		a.cfg.AuthlibAgent = value.ToString()
 	case "authMode":
 		a.cfg.AuthMode = value.ToString()
 	case "password":
@@ -152,6 +153,10 @@ func (a *App) dispatch(cmd string) {
 		a.onFindJava()
 	case "browseJava":
 		a.onBrowseJava()
+	case "browseAuthlib":
+		a.onBrowseAuthlib()
+	case "fetchAuthlib":
+		a.onFetchAuthlib()
 	case "browseDir":
 		a.onBrowseDir()
 	case "login":
@@ -182,6 +187,10 @@ func (a *App) onLaunch() {
 		a.fail("没有选择游戏,请选择或点击更新按钮更新游戏")
 		return
 	}
+	if strings.TrimSpace(a.cfg.PlayerName) == "" {
+		a.cfg.PlayerName = "Player"
+		a.setStr("playerName", "Player")
+	}
 	sess, err := a.session()
 	if err != nil {
 		a.fail(err.Error())
@@ -193,13 +202,32 @@ func (a *App) onLaunch() {
 		a.cfg.MaxMemoryMB = mem
 		a.setInt("memoryMB", mem)
 	}
-	bin, err := java.Find(a.cfg.JavaPath)
+	want := 0
+	if ver, err := launch.LoadVersion(inst.JSON); err == nil && ver.JavaVersion != nil {
+		want = ver.JavaVersion.MajorVersion
+	}
+	bin, err := java.Choose(a.cfg.JavaPath, a.cfg.GameDir, want)
 	if err != nil {
-		a.fail("没有找到java路径,请手动指定javaw.exe\n如果已经安装过java,请选择手动指定,并点击浏览按钮")
+		a.fail("没有找到java路径,请手动指定javaw.exe\n如果已经安装过java,请选择手动指定,并点击浏览按钮\n" + err.Error())
 		return
 	}
-	a.cfg.JavaPath = bin
-	a.setStr("javaPath", bin)
+	if strings.TrimSpace(a.cfg.JavaPath) == "" {
+		a.cfg.JavaPath = bin
+		a.setStr("javaPath", bin)
+	}
+	agent, server := "", ""
+	if a.cfg.AuthMode == "authlib" || a.cfg.AuthMode == "yggdrasil" {
+		jar, err := a.ensureAgent()
+		if err != nil {
+			a.fail(err.Error())
+			return
+		}
+		if strings.TrimSpace(a.cfg.YggdrasilRoot) == "" {
+			a.fail("外置登录需要填写验证服务器，例如 https://littleskin.cn/api/yggdrasil")
+			return
+		}
+		agent, server = jar, a.cfg.YggdrasilRoot
+	}
 	plan, err := launch.Build(launch.Request{
 		VersionJSON:     inst.JSON,
 		GameDir:         a.cfg.GameDir,
@@ -207,8 +235,8 @@ func (a *App) onLaunch() {
 		MemoryMB:        mem,
 		Session:         sess,
 		Isolate:         a.cfg.IsolateGame,
-		AuthlibInjector: a.cfg.AuthlibAgent,
-		AuthServer:      a.cfg.YggdrasilRoot,
+		AuthlibInjector: agent,
+		AuthServer:      server,
 	})
 	if err != nil {
 		a.fail(err.Error())
@@ -354,14 +382,20 @@ func (a *App) onSave() {
 }
 
 func (a *App) onFindJava() {
-	bin, err := java.Find("")
-	if err != nil {
-		a.fail(err.Error())
+	list := java.Sniff(a.cfg.GameDir, a.cfg.JavaPath)
+	if len(list) == 0 {
+		a.fail("没有找到 java。把路径填到设置里，或装一个 JDK 后再点查找。")
 		return
 	}
-	a.cfg.JavaPath = bin
-	a.setStr("javaPath", bin)
-	a.note("找到java路径,已经自动填入")
+	var b strings.Builder
+	for _, rt := range list {
+		fmt.Fprintf(&b, "Java %d    %s\n%s\n\n", rt.Major, rt.Version, rt.Path)
+	}
+	a.cfg.JavaPath = list[0].Path
+	a.setStr("javaPath", list[0].Path)
+	a.setStr("log", strings.TrimSpace(b.String()))
+	a.setStr("panel", "log")
+	a.note(fmt.Sprintf("找到 %d 个 Java，已填入 Java %d", len(list), list[0].Major))
 }
 
 func (a *App) onBrowseJava() {
@@ -371,6 +405,38 @@ func (a *App) onBrowseJava() {
 	}
 	a.cfg.JavaPath = path
 	a.setStr("javaPath", path)
+}
+
+func (a *App) onBrowseAuthlib() {
+	path := qt.QFileDialog_GetOpenFileName4(a.parent, "Authlib Injector", a.cfg.AuthlibAgent, "Jar (*.jar);;All (*)")
+	if path == "" {
+		return
+	}
+	a.cfg.AuthlibAgent = path
+	a.setStr("authlib", path)
+}
+
+func (a *App) onFetchAuthlib() {
+	jar, err := a.ensureAgent()
+	if err != nil {
+		a.fail(err.Error())
+		return
+	}
+	a.note("Authlib Injector 已就绪 " + jar)
+}
+
+func (a *App) ensureAgent() (string, error) {
+	destDir, err := config.Dir()
+	if err != nil {
+		return "", err
+	}
+	jar, err := auth.EnsureAuthlib(context.Background(), a.cfg.AuthlibAgent, filepath.Join(destDir, "authlib-injector.jar"))
+	if err != nil {
+		return "", err
+	}
+	a.cfg.AuthlibAgent = jar
+	a.setStr("authlib", jar)
+	return jar, nil
 }
 
 func (a *App) onBrowseDir() {
@@ -386,52 +452,41 @@ func (a *App) onBrowseDir() {
 func (a *App) onLogin() {
 	ctx := context.Background()
 	switch a.cfg.AuthMode {
-	case "yggdrasil":
+	case "authlib", "yggdrasil":
+		if strings.TrimSpace(a.cfg.YggdrasilRoot) == "" {
+			a.fail("外置登录需要填写验证服务器，例如 https://littleskin.cn/api/yggdrasil")
+			return
+		}
+		if _, err := a.ensureAgent(); err != nil {
+			a.fail(err.Error())
+			return
+		}
 		sess, err := auth.Yggdrasil(ctx, a.cfg.YggdrasilRoot, a.cfg.Email, a.password)
 		a.password = ""
 		if err != nil {
-			a.fail("测试登录失败\n" + err.Error())
+			a.fail("外置登录失败\n" + err.Error())
 			return
 		}
+		a.cfg.AuthMode = "authlib"
 		a.cfg.AccessToken = sess.AccessToken
 		a.cfg.UUID = sess.UUID
 		a.cfg.AuthName = sess.Name
 		a.cfg.PlayerName = sess.Name
 		a.setStr("playerName", sess.Name)
+		a.setStr("authMode", "authlib")
 		_ = config.Save(a.cfg)
-		a.note("测试登录成功 " + sess.Name)
+		a.note("外置登录成功 " + sess.Name)
 	case "microsoft":
-		dc, err := auth.StartMicrosoft(ctx)
-		if err != nil {
-			a.fail(err.Error())
-			return
-		}
-		a.setStr("log", fmt.Sprintf("在浏览器打开\n%s\n输入代码 %s", dc.VerificationURI, dc.UserCode))
-		a.setStr("panel", "log")
-		a.note("等待微软登录")
-		go func() {
-			sess, err := auth.PollMicrosoft(context.Background(), dc)
-			mainthread.Wait(func() {
-				if err != nil {
-					a.fail(err.Error())
-					return
-				}
-				a.cfg.AuthMode = "microsoft"
-				a.cfg.AccessToken = sess.AccessToken
-				a.cfg.RefreshToken = sess.RefreshToken
-				a.cfg.UUID = sess.UUID
-				a.cfg.AuthName = sess.Name
-				a.cfg.PlayerName = sess.Name
-				a.setStr("playerName", sess.Name)
-				a.setStr("authMode", "microsoft")
-				_ = config.Save(a.cfg)
-				a.note("测试登录成功 " + sess.Name)
-			})
-		}()
+		a.note("微软登录稍后实现")
 	default:
+		if strings.TrimSpace(a.cfg.PlayerName) == "" {
+			a.cfg.PlayerName = "Player"
+			a.setStr("playerName", "Player")
+		}
 		a.cfg.AuthMode = "offline"
 		a.cfg.AccessToken = ""
-		a.note("将使用游戏名字离线进入")
+		a.setStr("authMode", "offline")
+		a.note("离线登录，名字 " + a.cfg.PlayerName)
 	}
 }
 
@@ -500,18 +555,19 @@ func (a *App) applyRename(next string) {
 
 func (a *App) session() (auth.Session, error) {
 	switch a.cfg.AuthMode {
-	case "microsoft":
-		if a.cfg.AccessToken != "" && a.cfg.AuthName != "" {
-			return auth.Session{Name: a.cfg.AuthName, UUID: a.cfg.UUID, AccessToken: a.cfg.AccessToken, UserType: "msa", RefreshToken: a.cfg.RefreshToken}, nil
-		}
-		return auth.Session{}, fmt.Errorf("还没有微软登录。打开设置，点正版登录。")
-	case "yggdrasil":
+	case "authlib", "yggdrasil":
 		if a.cfg.AccessToken != "" && a.cfg.AuthName != "" {
 			return auth.Session{Name: a.cfg.AuthName, UUID: a.cfg.UUID, AccessToken: a.cfg.AccessToken, UserType: "legacy"}, nil
 		}
-		return auth.Session{}, fmt.Errorf("还没有验证服务器登录。打开设置，填写邮箱和密码后点正版登录测试。")
+		return auth.Session{}, fmt.Errorf("还没有外置登录。打开设置，填写验证服务器、账号和密码。")
+	case "microsoft":
+		return auth.Session{}, fmt.Errorf("微软登录稍后实现")
 	default:
-		return auth.Offline(a.cfg.PlayerName)
+		name := strings.TrimSpace(a.cfg.PlayerName)
+		if name == "" {
+			name = "Player"
+		}
+		return auth.Offline(name)
 	}
 }
 
@@ -572,22 +628,16 @@ func (a *App) filteredRemote() []download.RemoteVersion {
 	a.mu.Lock()
 	m := a.remote
 	a.mu.Unlock()
-	want := "release"
+	want := "all"
 	if v := a.bridge.Value("remoteFilter"); v != nil && v.ToString() != "" {
 		want = v.ToString()
 	}
-	if want != "release" && want != "snapshot" {
-		return nil
-	}
 	var out []download.RemoteVersion
 	for _, v := range m.Versions {
-		if v.Type != want {
+		if !matchFilter(want, v.Type) {
 			continue
 		}
 		out = append(out, v)
-		if len(out) >= 80 {
-			break
-		}
 	}
 	return out
 }
@@ -596,19 +646,23 @@ func (a *App) refreshRemote() {
 	rows := a.filteredRemote()
 	labels := make([]string, 0, len(rows))
 	for _, v := range rows {
-		labels = append(labels, v.ID+"    "+v.ReleaseTime)
-	}
-	filter := "release"
-	if v := a.bridge.Value("remoteFilter"); v != nil && v.ToString() != "" {
-		filter = v.ToString()
-	}
-	if filter != "release" && filter != "snapshot" {
-		labels = []string{"mcsky 镜像已关闭，这里只安装官方版本"}
+		labels = append(labels, v.ID+"    "+typeName(v.Type)+"    "+v.ReleaseTime)
 	}
 	if len(labels) == 0 {
 		labels = []string{"正在获取列表"}
 	}
 	a.setList("remoteLabels", labels)
+}
+
+func matchFilter(want, typ string) bool {
+	switch want {
+	case "", "all":
+		return true
+	case "old":
+		return typ == "old_alpha" || typ == "old_beta"
+	default:
+		return typ == want
+	}
 }
 
 func (a *App) note(s string) {
@@ -650,6 +704,10 @@ func typeName(t string) string {
 	switch t {
 	case "snapshot":
 		return "快照预览版"
+	case "old_beta":
+		return "远古Beta"
+	case "old_alpha":
+		return "远古Alpha"
 	case "release", "":
 		return "正式版"
 	default:

@@ -1,6 +1,5 @@
-// Package download installs vanilla versions from Mojang's current manifest.
-// The 2014 launcher asked updatemc.mcsky.net and s3.amazonaws.com; those
-// update mirrors are dead, so official piston-meta is the default.
+// Package download installs versions through BMCLAPI. The 2014 launcher asked
+// updatemc.mcsky.net; that mirror is gone, so bangbang93's API is the source.
 package download
 
 import (
@@ -20,8 +19,6 @@ import (
 
 	"github.com/LeiSureLyYrsc/mclauncher-go/internal/launch"
 )
-
-const ManifestURL = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
 
 type Progress func(done, total int, label string)
 
@@ -67,9 +64,11 @@ type versionDoc struct {
 }
 
 type libraryDoc struct {
-	Name      string        `json:"name"`
-	Downloads *libDL        `json:"downloads"`
-	Rules     []launch.Rule `json:"rules"`
+	Name      string            `json:"name"`
+	URL       string            `json:"url"`
+	Downloads *libDL            `json:"downloads"`
+	Natives   map[string]string `json:"natives"`
+	Rules     []launch.Rule     `json:"rules"`
 }
 
 type libDL struct {
@@ -129,29 +128,7 @@ func Install(ctx context.Context, gameDir string, remote RemoteVersion, prog Pro
 		if !launch.Allowed(lib.Rules, nil) {
 			continue
 		}
-		if lib.Downloads == nil {
-			continue
-		}
-		if lib.Downloads.Artifact != nil && lib.Downloads.Artifact.URL != "" && lib.Downloads.Artifact.Path != "" {
-			a := lib.Downloads.Artifact
-			jobs = append(jobs, job{
-				URL:  a.URL,
-				SHA1: a.SHA1,
-				Path: filepath.Join(gameDir, "libraries", filepath.FromSlash(a.Path)),
-				Name: filepath.Base(a.Path),
-			})
-		}
-		for key, a := range lib.Downloads.Classifiers {
-			if a.URL == "" || a.Path == "" || !wantNative(key) {
-				continue
-			}
-			jobs = append(jobs, job{
-				URL:  a.URL,
-				SHA1: a.SHA1,
-				Path: filepath.Join(gameDir, "libraries", filepath.FromSlash(a.Path)),
-				Name: filepath.Base(a.Path),
-			})
-		}
+		jobs = append(jobs, libraryJobs(gameDir, lib)...)
 	}
 
 	if doc.AssetIndex != nil && doc.AssetIndex.URL != "" {
@@ -231,6 +208,7 @@ func runJobs(ctx context.Context, jobs []job, prog Progress) error {
 }
 
 func downloadOne(ctx context.Context, j job) error {
+	j.URL = Rewrite(j.URL)
 	if j.SHA1 != "" {
 		if ok, _ := fileSHA1(j.Path, j.SHA1); ok {
 			return nil
@@ -297,8 +275,76 @@ func getJSON(ctx context.Context, url string, dest any) error {
 	return json.Unmarshal(b, dest)
 }
 
-func getBytes(ctx context.Context, url string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+func libraryJobs(gameDir string, lib libraryDoc) []job {
+	var jobs []job
+	add := func(rel, rawURL, sha, name string) {
+		if rel == "" {
+			return
+		}
+		if rawURL == "" {
+			base := "https://libraries.minecraft.net/"
+			if lib.URL != "" {
+				base = strings.TrimRight(lib.URL, "/") + "/"
+			}
+			rawURL = base + rel
+		}
+		jobs = append(jobs, job{
+			URL:  rawURL,
+			SHA1: sha,
+			Path: filepath.Join(gameDir, "libraries", filepath.FromSlash(rel)),
+			Name: name,
+		})
+	}
+	if lib.Downloads != nil && lib.Downloads.Artifact != nil && lib.Downloads.Artifact.Path != "" {
+		a := lib.Downloads.Artifact
+		add(a.Path, a.URL, a.SHA1, filepath.Base(a.Path))
+	} else if rel := MavenPath(lib.Name); rel != "" {
+		add(rel, "", "", filepath.Base(rel))
+	}
+	if lib.Downloads != nil {
+		for key, a := range lib.Downloads.Classifiers {
+			if a.Path == "" || !wantNative(key) {
+				continue
+			}
+			add(a.Path, a.URL, a.SHA1, filepath.Base(a.Path))
+		}
+	}
+	if cls := nativeClassifier(lib.Natives); cls != "" && lib.Name != "" {
+		rel := MavenPath(lib.Name + ":" + cls)
+		if rel != "" && !hasPath(jobs, rel) {
+			add(rel, "", "", filepath.Base(rel))
+		}
+	}
+	return jobs
+}
+
+func hasPath(jobs []job, rel string) bool {
+	for _, j := range jobs {
+		if strings.HasSuffix(filepath.ToSlash(j.Path), rel) {
+			return true
+		}
+	}
+	return false
+}
+
+func nativeClassifier(natives map[string]string) string {
+	if len(natives) == 0 {
+		return ""
+	}
+	key := runtime.GOOS
+	switch key {
+	case "darwin":
+		key = "osx"
+	case "windows", "linux":
+	default:
+		key = "linux"
+	}
+	return natives[key]
+}
+
+func getBytes(ctx context.Context, rawURL string) ([]byte, error) {
+	rawURL = Rewrite(rawURL)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
 		return nil, err
 	}

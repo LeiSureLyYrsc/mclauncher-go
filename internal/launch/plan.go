@@ -30,6 +30,13 @@ type Version struct {
 	Jar                string          `json:"jar"`
 	InheritsFrom       string          `json:"inheritsFrom"`
 	Type               string          `json:"type"`
+	JavaVersion        *JavaVersion    `json:"javaVersion"`
+}
+
+// JavaVersion is the runtime the version json asks for. 1.17+ started shipping it.
+type JavaVersion struct {
+	Component    string `json:"component"`
+	MajorVersion int    `json:"majorVersion"`
 }
 
 type Arguments struct {
@@ -269,9 +276,12 @@ func Build(req Request) (Plan, error) {
 	if req.AuthlibInjector != "" {
 		agent := req.AuthlibInjector
 		if req.AuthServer != "" {
-			agent += "=" + req.AuthServer
+			agent += "=" + strings.TrimRight(req.AuthServer, "/")
 		}
-		jvm = append(jvm, "-javaagent:"+agent)
+		jvm = append(jvm,
+			"-javaagent:"+agent,
+			"-Dauthlibinjector.side=client",
+		)
 	}
 	jvm = append(jvm,
 		fmt.Sprintf("-Xmx%dM", mem),

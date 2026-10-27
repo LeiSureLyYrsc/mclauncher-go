@@ -60,7 +60,7 @@ func main() {
 		if *id == "" {
 			fatal(fmt.Errorf("需要 --version"))
 		}
-		bin, err := java.Find(*javaPath)
+		bin, err := java.Choose(*javaPath, *dir, 0)
 		if err != nil {
 			bin = "java"
 		}
@@ -82,11 +82,13 @@ func main() {
 			fmt.Println(a)
 		}
 	case "java":
-		p, err := java.Find("")
-		if err != nil {
-			fatal(err)
+		list := java.Sniff("", "")
+		if len(list) == 0 {
+			fatal(fmt.Errorf("没有找到 java"))
 		}
-		fmt.Println(p)
+		for _, rt := range list {
+			fmt.Printf("Java %d\t%s\t%s\n", rt.Major, rt.Version, rt.Path)
+		}
 		fmt.Printf("自动内存 %d MB\n", java.AutoMemoryMB())
 	default:
 		usage()

@@ -22,7 +22,7 @@ type Config struct {
 	GameDir         string `json:"gameDir"`
 	SelectedVersion string `json:"selectedVersion"`
 	IsolateGame     bool   `json:"isolateGame"`
-	// AuthMode: offline | yggdrasil | microsoft
+	// AuthMode: offline | authlib. microsoft is reserved and not wired up yet.
 	AuthMode      string `json:"authMode"`
 	YggdrasilRoot string `json:"yggdrasilRoot"`
 	Email         string `json:"email"`
@@ -44,7 +44,7 @@ func Default(gameDir string) Config {
 		MemoryAuto:    true,
 		GameDir:       gameDir,
 		AuthMode:      "offline",
-		YggdrasilRoot: "https://authserver.mojang.com",
+		YggdrasilRoot: "",
 		BgMode:        "random",
 		Skin:          "sunset",
 		FirstRun:      true,
@@ -92,8 +92,8 @@ func Load() (Config, error) {
 	if cfg.AuthMode == "" {
 		cfg.AuthMode = "offline"
 	}
-	if cfg.YggdrasilRoot == "" {
-		cfg.YggdrasilRoot = "https://authserver.mojang.com"
+	if cfg.AuthMode == "yggdrasil" {
+		cfg.AuthMode = "authlib"
 	}
 	if cfg.Skin == "" {
 		cfg.Skin = "sunset"

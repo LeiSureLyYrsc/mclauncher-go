@@ -10,10 +10,11 @@
 
 - 扫描 `.minecraft/versions`，启动选中的版本
 - 把 1.6 之前的 `.minecraft/bin/minecraft.jar` 导入成一个版本
-- 离线进入（原版默认）
-- Yggdrasil 账号：自己填验证服务器根地址
-- 微软账号设备码登录
-- 从 `https://piston-meta.mojang.com/mc/game/version_manifest_v2.json` 安装正式版或快照，带库和资源，用 SHA1 跳过已下完的文件
+- 不填账号就是离线。名字空着会用 Player，不需要先做一遍设置
+- 外置登录走 Authlib Injector。验证服务器、账号、密码在设置里填，jar 可以自己选，也可以从 BMCLAPI 下最新的
+- 微软登录还没接
+- 版本清单、客户端、库和资源都走 [BMCLAPI](https://bmclapi2.bangbang93.com)。正式版、快照、远古版都能安装、更新和启动，用 SHA1 跳过已经下完的文件
+- Java 路径留空时，会在 PATH、JAVA_HOME、常见安装目录和 `.minecraft/runtime` 里嗅探，并按版本 json 的 `javaVersion` 选一个够新的
 - 内存自动（500–1300 MB，和 5.31 的说明一致）或手动
 - 版本隔离、调试模式（`mclauncher.sh` / `mclauncher.bat` + `输出日志.txt`）
 
@@ -42,9 +43,7 @@ Windows 上安装 Qt 6，并让编译器找得到 Qt。界面字体优先微软�
 
 ## 配置
 
-第一次运行会在用户配置目录建立 `mclauncher/mclauncher.cfg`（Linux 一般是 `~/.config/mclauncher/mclauncher.cfg`）。游戏目录默认是 `~/.minecraft`，可以在设置里改成启动器旁边的目录，贴近原版「旁边放一个 .minecraft」的习惯。
-
-第三方皮肤站如果要求 authlib-injector，把 jar 路径填在设置里。原版 5.31 没有这一项，这是为了让 Yggdrasil 根地址在新版本上真的能进服务器。
+第一次运行不会强制打开设置。游戏目录默认是 `~/.minecraft`。离线不写登录配置。外置登录的令牌会写进配置文件，权限是 `0600`，密码不保存。Authlib Injector 默认放在同一配置目录。
 
 ## 布局
 
