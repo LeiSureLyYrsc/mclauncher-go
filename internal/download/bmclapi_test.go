@@ -14,8 +14,26 @@ func TestRewriteBMCLAPI(t *testing.T) {
 		"https://bmclapi2.bangbang93.com/maven/already.jar":                                                                 "https://bmclapi2.bangbang93.com/maven/already.jar",
 	}
 	for in, want := range cases {
-		if got := Rewrite(in); got != want {
+		if got := Rewrite(SourceBMCLAPI, in); got != want {
 			t.Errorf("Rewrite(%s)\n got %s\nwant %s", in, got, want)
+		}
+		if got := Rewrite(SourceOfficial, in); got != in {
+			t.Errorf("official Rewrite(%s) = %s", in, got)
+		}
+	}
+}
+
+func TestOfficialUndo(t *testing.T) {
+	cases := map[string]string{
+		"https://bmclapi2.bangbang93.com/maven/com/google/guava/guava/17.0/guava-17.0.jar": "https://libraries.minecraft.net/com/google/guava/guava/17.0/guava-17.0.jar",
+		"https://bmclapi2.bangbang93.com/assets/ab/abcd":                                   "https://resources.download.minecraft.net/ab/abcd",
+		"https://bmclapi2.bangbang93.com/v1/objects/abc/client.jar":                        "https://piston-data.mojang.com/v1/objects/abc/client.jar",
+		"https://bmclapi2.bangbang93.com/mc/game/version_manifest_v2.json":                 "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json",
+		"https://piston-meta.mojang.com/mc/game/version_manifest_v2.json":                  "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json",
+	}
+	for in, want := range cases {
+		if got := Official(in); got != want {
+			t.Errorf("Official(%s)\n got %s\nwant %s", in, got, want)
 		}
 	}
 }

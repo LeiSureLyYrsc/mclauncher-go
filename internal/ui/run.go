@@ -78,6 +78,7 @@ func (a *App) publish() {
 	a.setStr("yggdrasil", c.YggdrasilRoot)
 	a.setStr("authlib", c.AuthlibAgent)
 	a.setStr("authMode", c.AuthMode)
+	a.setStr("downloadSource", c.DownloadSource)
 	a.setBool("firstRun", c.FirstRun)
 	a.setStr("status", "就绪")
 	a.setInt("progress", 0)
@@ -136,6 +137,14 @@ func (a *App) onChanged(key string, value *qt.QVariant) {
 		a.selectVersion(value.ToInt())
 	case "remoteFilter":
 		a.refreshRemote()
+	case "downloadSource":
+		next := value.ToString()
+		if next != "bmclapi" && next != "official" {
+			return
+		}
+		a.cfg.DownloadSource = next
+		_ = config.Save(a.cfg)
+		go a.loadRemote()
 	}
 }
 
@@ -311,7 +320,7 @@ func (a *App) install(target download.RemoteVersion) {
 	if a.cancel != nil {
 		a.cancel()
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(download.WithSource(context.Background(), a.cfg.DownloadSource))
 	a.cancel = cancel
 	a.setBool("busy", true)
 	a.setInt("progress", 0)
@@ -345,7 +354,7 @@ func (a *App) install(target download.RemoteVersion) {
 }
 
 func (a *App) loadRemote() {
-	m, err := download.FetchManifest(context.Background())
+	m, note, err := download.FetchManifest(download.WithSource(context.Background(), a.cfg.DownloadSource))
 	mainthread.Wait(func() {
 		if err != nil {
 			a.note(err.Error())
@@ -355,6 +364,10 @@ func (a *App) loadRemote() {
 		a.remote = m
 		a.mu.Unlock()
 		a.refreshRemote()
+		if note != "" {
+			a.note(note)
+			return
+		}
 		a.note("获取列表完成，最新正式版 " + m.Latest.Release)
 	})
 }

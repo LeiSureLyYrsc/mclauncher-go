@@ -35,19 +35,22 @@ type Config struct {
 	// Skin is sunset, sky, or default. The files are the 2014 launcher's own pictures.
 	Skin     string `json:"skin"`
 	FirstRun bool   `json:"firstRun"`
+	// DownloadSource is official or bmclapi.
+	DownloadSource string `json:"downloadSource"`
 }
 
 func Default(gameDir string) Config {
 	return Config{
-		PlayerName:    "Player",
-		MaxMemoryMB:   1024,
-		MemoryAuto:    true,
-		GameDir:       gameDir,
-		AuthMode:      "offline",
-		YggdrasilRoot: "",
-		BgMode:        "random",
-		Skin:          "sunset",
-		FirstRun:      true,
+		PlayerName:     "Player",
+		MaxMemoryMB:    1024,
+		MemoryAuto:     true,
+		GameDir:        gameDir,
+		AuthMode:       "offline",
+		YggdrasilRoot:  "",
+		BgMode:         "random",
+		Skin:           "sunset",
+		FirstRun:       true,
+		DownloadSource: "official",
 	}
 }
 
@@ -100,6 +103,9 @@ func Load() (Config, error) {
 	}
 	if cfg.GameDir == "" {
 		cfg.GameDir = filepath.Join(home, ".minecraft")
+	}
+	if cfg.DownloadSource != "bmclapi" && cfg.DownloadSource != "official" {
+		cfg.DownloadSource = "official"
 	}
 	return cfg, nil
 }

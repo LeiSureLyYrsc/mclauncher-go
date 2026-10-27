@@ -13,7 +13,7 @@
 - 不填账号就是离线。名字空着会用 Player，不需要先做一遍设置
 - 外置登录走 Authlib Injector。验证服务器、账号、密码在设置里填，jar 可以自己选，也可以从 BMCLAPI 下最新的
 - 微软登录还没接
-- 版本清单、客户端、库和资源都走 [BMCLAPI](https://bmclapi2.bangbang93.com)。正式版、快照、远古版都能安装、更新和启动，用 SHA1 跳过已经下完的文件
+- 版本清单、客户端、库和资源可选官方源或 [BMCLAPI](https://bmclapi2.bangbang93.com)。正式版、快照、远古版都能安装、更新和启动，用 SHA1 跳过已经下完的文件。BMCLAPI 会把文件跳到志愿节点，节点连不上就换一个，再失败则改走官方
 - Java 路径留空时，会在 PATH、JAVA_HOME、常见安装目录和 `.minecraft/runtime` 里嗅探，并按版本 json 的 `javaVersion` 选一个够新的
 - 内存自动（500–1300 MB，和 5.31 的说明一致）或手动
 - 版本隔离、调试模式（`mclauncher.sh` / `mclauncher.bat` + `输出日志.txt`）

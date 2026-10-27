@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Layouts
 import QtQuick.Window
 
 Window {
@@ -22,6 +23,7 @@ Window {
     }
 
     MouseArea {
+        z: 0
         anchors.fill: parent
         property point origin
         onPressed: function (mouse) { origin = Qt.point(mouse.x, mouse.y) }
@@ -45,21 +47,60 @@ Window {
     }
 
     Row {
-        x: 668
-        y: 4
-        spacing: 2
+        z: 10
+        anchors.right: parent.right
+        anchors.top: parent.top
+        spacing: 0
         Image {
-            width: 22
-            height: 22
-            source: app.assetsUrl + "/chrome/min-a.png"
-            MouseArea { anchors.fill: parent; onClicked: root.showMinimized() }
+            width: 38
+            height: 38
+            source: minArea.containsMouse ? app.assetsUrl + "/chrome/min-b.png" : app.assetsUrl + "/chrome/min-a.png"
+            MouseArea {
+                id: minArea
+                anchors.fill: parent
+                hoverEnabled: true
+                onClicked: root.showMinimized()
+            }
         }
         Image {
-            width: 22
-            height: 22
-            source: app.assetsUrl + "/chrome/close-a.png"
-            MouseArea { anchors.fill: parent; onClicked: Qt.quit() }
+            width: 38
+            height: 38
+            source: closeArea.containsMouse ? app.assetsUrl + "/chrome/close-b.png" : app.assetsUrl + "/chrome/close-a.png"
+            MouseArea {
+                id: closeArea
+                anchors.fill: parent
+                hoverEnabled: true
+                onClicked: Qt.quit()
+            }
         }
+    }
+
+    function placeDialog(win) {
+        var s = root.screen
+        if (!s)
+            return
+        win.screen = s
+        var ax = s.virtualX
+        var ay = s.virtualY
+        var aw = s.desktopAvailableWidth > 0 ? s.desktopAvailableWidth : s.width
+        var ah = s.desktopAvailableHeight > 0 ? s.desktopAvailableHeight : s.height
+        if (win.width > aw)
+            win.width = Math.max(win.minimumWidth, aw)
+        if (win.height > ah - 8)
+            win.height = Math.max(win.minimumHeight, ah - 8)
+        var c = root.mapToGlobal(root.width / 2, root.height / 2)
+        var x = c.x - win.width / 2
+        var y = c.y - win.height / 2
+        if (x < ax)
+            x = ax
+        if (y < ay)
+            y = ay
+        if (x + win.width > ax + aw)
+            x = Math.max(ax, ax + aw - win.width)
+        if (y + win.height > ay + ah)
+            y = Math.max(ay, ay + ah - win.height)
+        win.x = x
+        win.y = y
     }
 
     component GlassButton: Button {
@@ -229,13 +270,51 @@ Window {
         height: 560
         title: app.firstRun ? "请完成以下设置" : "游戏设置窗口"
         transientParent: root
-        flags: Qt.Dialog | Qt.WindowTitleHint | Qt.WindowCloseButtonHint
+        flags: Qt.Window | Qt.WindowTitleHint | Qt.WindowSystemMenuHint | Qt.WindowCloseButtonHint
+        minimumWidth: 480
+        minimumHeight: 360
         visible: app.panel === "setup"
         color: "#e7eeef"
+        onVisibleChanged: if (visible) root.placeDialog(setup)
         onClosing: function (close) { app.panel = "" }
 
+        Rectangle {
+            id: setupBanner
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            height: 42
+            color: "#d5e0e2"
+            z: 2
+            Text {
+                anchors.left: parent.left
+                anchors.leftMargin: 12
+                anchors.verticalCenter: parent.verticalCenter
+                text: setup.title
+                font.family: root.yahei
+                font.pixelSize: 14
+                color: "#1a1a1a"
+            }
+            Image {
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                width: 38
+                height: 38
+                source: setupClose.containsMouse ? app.assetsUrl + "/chrome/close-b.png" : app.assetsUrl + "/chrome/close-a.png"
+                MouseArea {
+                    id: setupClose
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    onClicked: app.panel = ""
+                }
+            }
+        }
+
         Flickable {
-            anchors.fill: parent
+            anchors.top: setupBanner.bottom
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
             contentHeight: form.implicitHeight + 24
             clip: true
             Column {
@@ -404,39 +483,71 @@ Window {
         height: 460
         title: "下载中心"
         transientParent: root
-        flags: Qt.Dialog | Qt.WindowTitleHint | Qt.WindowCloseButtonHint
+        flags: Qt.Window | Qt.WindowTitleHint | Qt.WindowSystemMenuHint | Qt.WindowCloseButtonHint
+        minimumWidth: 480
+        minimumHeight: 320
         visible: app.panel === "download"
         color: "#e7eeef"
+        onVisibleChanged: if (visible) root.placeDialog(down)
         onClosing: function (close) { app.panel = "" }
 
-        Column {
-            anchors.fill: parent
+        Rectangle {
+            id: downBanner
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            height: 42
+            color: "#d5e0e2"
+            z: 2
+            Text {
+                anchors.left: parent.left
+                anchors.leftMargin: 12
+                anchors.verticalCenter: parent.verticalCenter
+                text: "下载中心"
+                font.family: root.yahei
+                font.pixelSize: 14
+            }
+            Image {
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                width: 38
+                height: 38
+                source: downClose.containsMouse ? app.assetsUrl + "/chrome/close-b.png" : app.assetsUrl + "/chrome/close-a.png"
+                MouseArea {
+                    id: downClose
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    onClicked: app.panel = ""
+                }
+            }
+        }
+
+        ColumnLayout {
+            anchors.top: downBanner.bottom
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
             anchors.margins: 12
             spacing: 8
             Row {
                 spacing: 6
-                Button {
-                    text: "全部版本"
-                    onClicked: app.remoteFilter = "all"
+                ComboBox {
+                    id: sourceBox
+                    width: 140
+                    model: ["官方", "BMCLAPI"]
+                    currentIndex: app.downloadSource === "bmclapi" ? 1 : 0
+                    onActivated: function (i) { app.downloadSource = i === 1 ? "bmclapi" : "official" }
                 }
-                Button {
-                    text: "正式版"
-                    onClicked: app.remoteFilter = "release"
-                }
-                Button {
-                    text: "快照"
-                    onClicked: app.remoteFilter = "snapshot"
-                }
-                Button {
-                    text: "远古"
-                    onClicked: app.remoteFilter = "old"
-                }
+                Button { text: "全部版本"; onClicked: app.remoteFilter = "all" }
+                Button { text: "正式版"; onClicked: app.remoteFilter = "release" }
+                Button { text: "快照"; onClicked: app.remoteFilter = "snapshot" }
+                Button { text: "远古"; onClicked: app.remoteFilter = "old" }
                 Button { text: "刷新"; onClicked: app.cmd = "reloadRemote" }
             }
             ListView {
                 id: remoteList
-                width: parent.width
-                height: 300
+                Layout.fillWidth: true
+                Layout.fillHeight: true
                 clip: true
                 model: app.remoteLabels
                 currentIndex: app.remoteIndex
@@ -448,10 +559,12 @@ Window {
                 }
             }
             Label {
-                width: parent.width
+                Layout.fillWidth: true
                 wrapMode: Text.WordWrap
                 color: "#355"
-                text: "列表来自 BMCLAPI，包含正式版、快照和远古版。选中后点确定就会安装，更新游戏会重下当前选中的版本。"
+                text: app.downloadSource === "bmclapi"
+                      ? "BMCLAPI：国内镜像。文件会跳到志愿节点，节点连不上会自动换节点，再不行改走官方。短时间请求太多会被限流。"
+                      : "官方源：Mojang 原站。国内直连可能很慢或被断开，可以改成 BMCLAPI。"
             }
             Row {
                 spacing: 6
@@ -468,17 +581,53 @@ Window {
         height: 320
         title: app.debug ? "输出日志.txt" : "提示"
         transientParent: root
-        flags: Qt.Dialog | Qt.WindowTitleHint | Qt.WindowCloseButtonHint
+        flags: Qt.Window | Qt.WindowTitleHint | Qt.WindowSystemMenuHint | Qt.WindowCloseButtonHint
+        minimumWidth: 360
+        minimumHeight: 220
         visible: app.panel === "log"
         color: "#e7eeef"
+        onVisibleChanged: if (visible) root.placeDialog(logWin)
         onClosing: function (close) { app.panel = "" }
-        Column {
-            anchors.fill: parent
+        Rectangle {
+            id: logBanner
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            height: 42
+            color: "#d5e0e2"
+            z: 2
+            Text {
+                anchors.left: parent.left
+                anchors.leftMargin: 12
+                anchors.verticalCenter: parent.verticalCenter
+                text: logWin.title
+                font.family: root.yahei
+                font.pixelSize: 14
+            }
+            Image {
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                width: 38
+                height: 38
+                source: logClose.containsMouse ? app.assetsUrl + "/chrome/close-b.png" : app.assetsUrl + "/chrome/close-a.png"
+                MouseArea {
+                    id: logClose
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    onClicked: app.panel = ""
+                }
+            }
+        }
+        ColumnLayout {
+            anchors.top: logBanner.bottom
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
             anchors.margins: 12
             spacing: 8
             ScrollView {
-                width: parent.width
-                height: 220
+                Layout.fillWidth: true
+                Layout.fillHeight: true
                 TextArea {
                     text: app.log
                     readOnly: true

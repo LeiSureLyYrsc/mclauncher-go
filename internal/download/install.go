@@ -9,13 +9,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/LeiSureLyYrsc/mclauncher-go/internal/launch"
 )
@@ -37,12 +35,36 @@ type Manifest struct {
 	Versions []RemoteVersion `json:"versions"`
 }
 
-func FetchManifest(ctx context.Context) (Manifest, error) {
-	var m Manifest
-	if err := getJSON(ctx, ManifestURL, &m); err != nil {
-		return m, fmt.Errorf("获取列表失败: %w", err)
+func FetchManifest(ctx context.Context) (Manifest, string, error) {
+	source := sourceFrom(ctx)
+	order := []string{source, OtherSource(source)}
+	var notes []string
+	for i, s := range order {
+		var m Manifest
+		err := getJSON(WithSource(ctx, s), ManifestURL(s), &m)
+		if err == nil && len(m.Versions) > 0 {
+			note := ""
+			if i > 0 {
+				note = "所选下载源失败（" + strings.Join(notes, "；") + "），已改用" + sourceLabel(s)
+			}
+			return m, note, nil
+		}
+		if err == nil {
+			err = fmt.Errorf("列表是空的")
+		}
+		notes = append(notes, sourceLabel(s)+" "+err.Error())
+		if ctx.Err() != nil {
+			break
+		}
 	}
-	return m, nil
+	return Manifest{}, "", fmt.Errorf("获取列表失败: %s", strings.Join(notes, "；"))
+}
+
+func sourceLabel(source string) string {
+	if NormalizeSource(source) == SourceBMCLAPI {
+		return "BMCLAPI"
+	}
+	return "官方源"
 }
 
 type versionDoc struct {
@@ -208,7 +230,6 @@ func runJobs(ctx context.Context, jobs []job, prog Progress) error {
 }
 
 func downloadOne(ctx context.Context, j job) error {
-	j.URL = Rewrite(j.URL)
 	if j.SHA1 != "" {
 		if ok, _ := fileSHA1(j.Path, j.SHA1); ok {
 			return nil
@@ -219,26 +240,18 @@ func downloadOne(ctx context.Context, j job) error {
 	if err := os.MkdirAll(filepath.Dir(j.Path), 0o755); err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, j.URL, nil)
+	body, err := openGET(ctx, j.URL)
 	if err != nil {
 		return err
 	}
-	req.Header.Set("User-Agent", "mclauncher-go/1.0")
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode >= 300 {
-		return fmt.Errorf("HTTP %d", res.StatusCode)
-	}
+	defer body.Close()
 	tmp := j.Path + ".part"
 	f, err := os.Create(tmp)
 	if err != nil {
 		return err
 	}
 	h := sha1.New()
-	if _, err := io.Copy(io.MultiWriter(f, h), res.Body); err != nil {
+	if _, err := io.Copy(io.MultiWriter(f, h), body); err != nil {
 		f.Close()
 		os.Remove(tmp)
 		return err
@@ -340,25 +353,6 @@ func nativeClassifier(natives map[string]string) string {
 		key = "linux"
 	}
 	return natives[key]
-}
-
-func getBytes(ctx context.Context, rawURL string) ([]byte, error) {
-	rawURL = Rewrite(rawURL)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("User-Agent", "mclauncher-go/1.0")
-	client := &http.Client{Timeout: 90 * time.Second}
-	res, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode >= 300 {
-		return nil, fmt.Errorf("HTTP %d", res.StatusCode)
-	}
-	return io.ReadAll(io.LimitReader(res.Body, 64<<20))
 }
 
 func wantNative(classifier string) bool {
