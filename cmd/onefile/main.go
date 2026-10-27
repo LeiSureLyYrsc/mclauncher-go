@@ -6,8 +6,11 @@ package main
 
 import (
 	_ "embed"
+	"errors"
+	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"syscall"
 
@@ -38,15 +41,28 @@ func main() {
 		}
 		return
 	}
+	if err := os.MkdirAll(filepath.Dir(boot.LogFile()), 0o755); err != nil {
+		boot.Fail(err)
+	}
+	logf, err := os.OpenFile(boot.LogFile(), os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
+	if err != nil {
+		boot.Fail(err)
+	}
 	cmd := exec.Command(exe, os.Args[1:]...)
 	cmd.Env = env
 	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		if ee, ok := err.(*exec.ExitError); ok {
-			os.Exit(ee.ExitCode())
+	cmd.Stdout = io.MultiWriter(os.Stdout, logf)
+	cmd.Stderr = io.MultiWriter(os.Stderr, logf)
+	runErr := cmd.Run()
+	logf.Close()
+	if runErr != nil {
+		msg := runErr.Error()
+		if b, err := os.ReadFile(boot.LogFile()); err == nil && len(b) > 0 {
+			msg = string(b)
+			if len(msg) > 1200 {
+				msg = msg[len(msg)-1200:]
+			}
 		}
-		boot.Fail(err)
+		boot.Fail(errors.New(msg))
 	}
 }

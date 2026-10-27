@@ -56,16 +56,35 @@ func TestExtractRejectsEscape(t *testing.T) {
 }
 
 func TestLaunchEnv(t *testing.T) {
-	dir := filepath.Join("/opt", "rt")
-	env := LaunchEnv(dir, []string{"HOME=/home/a", "LD_LIBRARY_PATH=/old", "PATH=/usr/bin"})
+	linux := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(linux, "plugins", "platforms"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(linux, "qml"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	env := LaunchEnv(linux, []string{"HOME=/home/a", "LD_LIBRARY_PATH=/old", "PATH=/usr/bin"})
 	joined := strings.Join(env, "\n")
-	if !strings.Contains(joined, "QT_PLUGIN_PATH="+filepath.Join(dir, "plugins")) {
+	if !strings.Contains(joined, "QT_PLUGIN_PATH="+filepath.Join(linux, "plugins")) {
 		t.Fatal(joined)
 	}
-	if !strings.Contains(joined, "QML_IMPORT_PATH="+filepath.Join(dir, "qml")) {
+	if strings.Contains(joined, "QT_PLUGIN_PATH="+linux+"\n") || strings.HasSuffix(joined, "QT_PLUGIN_PATH="+linux) {
 		t.Fatal(joined)
 	}
-	if strings.Contains(joined, "LD_LIBRARY_PATH=/old\n") || strings.HasSuffix(joined, "LD_LIBRARY_PATH=/old") {
+
+	win := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(win, "platforms"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(win, "qml"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	env = LaunchEnv(win, nil)
+	joined = strings.Join(env, "\n")
+	if !strings.Contains(joined, "QT_PLUGIN_PATH="+win) {
+		t.Fatal(joined)
+	}
+	if strings.Contains(joined, "QT_PLUGIN_PATH="+filepath.Join(win, "plugins")) {
 		t.Fatal(joined)
 	}
 }

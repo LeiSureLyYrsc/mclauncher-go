@@ -67,4 +67,5 @@ if [[ -z $deploy ]]; then
   exit 1
 fi
 "$deploy" --compiler-runtime --qmldir "$root/assets/qml" "$stage/mclauncher.exe"
+bash .github/scripts/copy-win-deps.sh "$stage" /ucrt64/bin
 bash .github/scripts/pack-onefile.sh "$stage" dist/mclauncher-windows-amd64.exe

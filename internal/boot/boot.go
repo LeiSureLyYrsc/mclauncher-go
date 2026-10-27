@@ -150,8 +150,11 @@ func InnerExe(dir string) string {
 // LaunchEnv points Qt at the plugins and libraries that were unpacked next
 // to the real window. The process working directory is left alone.
 func LaunchEnv(dir string, base []string) []string {
-	plugin := filepath.Join(dir, "plugins")
-	qml := filepath.Join(dir, "qml")
+	plugin := pluginRoot(dir)
+	qml := ""
+	if st, err := os.Stat(filepath.Join(dir, "qml")); err == nil && st.IsDir() {
+		qml = filepath.Join(dir, "qml")
+	}
 	lib := filepath.Join(dir, "lib")
 	drop := map[string]bool{
 		"QT_PLUGIN_PATH": true, "QML_IMPORT_PATH": true, "QML2_IMPORT_PATH": true,
@@ -178,11 +181,12 @@ func LaunchEnv(dir string, base []string) []string {
 		}
 		out = append(out, e)
 	}
-	out = append(out,
-		"QT_PLUGIN_PATH="+plugin,
-		"QML_IMPORT_PATH="+qml,
-		"QML2_IMPORT_PATH="+qml,
-	)
+	if plugin != "" {
+		out = append(out, "QT_PLUGIN_PATH="+plugin)
+	}
+	if qml != "" {
+		out = append(out, "QML_IMPORT_PATH="+qml, "QML2_IMPORT_PATH="+qml)
+	}
 	if runtime.GOOS == "linux" {
 		if oldLib != "" {
 			lib = lib + string(os.PathListSeparator) + oldLib
@@ -197,6 +201,26 @@ func LaunchEnv(dir string, base []string) []string {
 		out = append(out, "PATH="+path)
 	}
 	return out
+}
+
+// pluginRoot is the directory Qt searches for platforms/. Linux stages that
+// under plugins/; windeployqt puts it next to the exe.
+func pluginRoot(dir string) string {
+	if st, err := os.Stat(filepath.Join(dir, "plugins", "platforms")); err == nil && st.IsDir() {
+		return filepath.Join(dir, "plugins")
+	}
+	if st, err := os.Stat(filepath.Join(dir, "platforms")); err == nil && st.IsDir() {
+		return dir
+	}
+	return ""
+}
+
+func LogFile() string {
+	cache, err := os.UserCacheDir()
+	if err != nil {
+		cache = os.TempDir()
+	}
+	return filepath.Join(cache, "mclauncher", "boot.log")
 }
 
 func sweepOld(parent, keep string) {
