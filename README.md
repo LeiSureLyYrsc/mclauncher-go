@@ -41,6 +41,15 @@ go build -o bin/mclauncher ./cmd/mclauncher
 
 Windows 上安装 Qt 6，并让编译器找得到 Qt。界面字体优先微软雅黑。
 
+## 自动构建
+
+[.github/workflows/build.yml](.github/workflows/build.yml) 在推到 `main`、打开 pull request、或打 `v*` 标签时跑测试并打包：
+
+- `mclauncher-linux-amd64.tar.gz`：带 Qt 库和 QML 插件，用里面的 `mclauncher.sh` 启动
+- `mclauncher-windows-amd64.zip`：UCRT64 编的窗口和命令行，Qt DLL 由 windeployqt 放在 exe 旁边
+
+标签会把这两个包挂到 GitHub Release。页面上的 Artifacts 在每次构建后也能下。
+
 ## 配置
 
 第一次运行不会强制打开设置。游戏目录默认是 `~/.minecraft`。离线不写登录配置。外置登录的令牌会写进配置文件，权限是 `0600`，密码不保存。Authlib Injector 默认放在同一配置目录。
