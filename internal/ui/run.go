@@ -57,7 +57,7 @@ func Run() error {
 	if len(engine.RootObjects()) == 0 {
 		return fmt.Errorf("QML 没有加载: %s", qmlPath)
 	}
-	go a.loadRemote()
+	go app.loadRemote()
 	qt.QApplication_Exec()
 	return nil
 }

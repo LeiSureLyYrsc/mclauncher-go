@@ -59,13 +59,14 @@ jobs:
             ~/go/pkg/mod
           key: linux-miqt-${{ hashFiles('go.sum') }}
           restore-keys: linux-miqt-
+          save-always: true
       - name: Download modules
         timeout-minutes: 5
         run: |
           echo "proxy ${GOPROXY:-default}"
           go mod download -x
       - name: Build
-        timeout-minutes: 25
+        timeout-minutes: 45
         run: bash .github/scripts/stage-linux.sh
       - uses: actions/upload-artifact@v4
         with:
@@ -111,6 +112,7 @@ jobs:
             ~\go\pkg\mod
           key: windows-miqt-${{ hashFiles('go.sum') }}
           restore-keys: windows-miqt-
+          save-always: true
       - name: Download modules
         timeout-minutes: 5
         shell: pwsh
@@ -119,7 +121,7 @@ jobs:
           go env GOPATH GOMODCACHE
           go mod download -x
       - name: Build
-        timeout-minutes: 35
+        timeout-minutes: 50
         shell: msys2 {0}
         run: bash .github/scripts/stage-windows.sh
       - uses: actions/upload-artifact@v4
