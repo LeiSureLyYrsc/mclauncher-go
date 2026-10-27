@@ -67,8 +67,4 @@ if [[ -z $deploy ]]; then
   exit 1
 fi
 "$deploy" --compiler-runtime --qmldir "$root/assets/qml" "$stage/mclauncher.exe"
-
-mkdir -p dist
-rm -f dist/mclauncher-windows-amd64.zip
-(cd dist && tar -a -cf mclauncher-windows-amd64.zip windows)
-echo "wrote dist/mclauncher-windows-amd64.zip"
+bash .github/scripts/pack-onefile.sh "$stage" dist/mclauncher-windows-amd64.exe

@@ -1,5 +1,6 @@
 /bin/
 /dist/
+cmd/onefile/payload.zip
 *.exe
 *.log
 输出日志.txt

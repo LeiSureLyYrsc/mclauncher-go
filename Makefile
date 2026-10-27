@@ -7,4 +7,4 @@ ui:
 	go build -o bin/mclauncher ./cmd/mclauncher
 
 test:
-	go test ./internal/config ./internal/auth ./internal/java ./internal/launch ./internal/version ./internal/download
+	go test ./internal/config ./internal/auth ./internal/java ./internal/launch ./internal/version ./internal/download ./internal/boot

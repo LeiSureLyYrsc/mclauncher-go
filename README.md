@@ -39,16 +39,18 @@ sudo apt install gcc pkg-config qt6-base-dev qt6-declarative-dev
 go build -o bin/mclauncher ./cmd/mclauncher
 ```
 
-Windows 上安装 Qt 6，并让编译器找得到 Qt。界面字体优先微软雅黑。
+Windows 上安装 Qt 6，并让编译器找得到 Qt。界面字体优先微软雅黑。自己编译出来的窗口仍然依赖系统里的 Qt。给别人用的是下面的单文件。
 
 ## 自动构建
 
-[.github/workflows/build.yml](.github/workflows/build.yml) 在推到 `main`、打开 pull request、或打 `v*` 标签时跑测试并打包：
+[.github/workflows/build.yml](.github/workflows/build.yml) 在推到 `main`、打开 pull request、或打 `v*` 标签时跑测试并打出**一个**可执行文件：
 
-- `mclauncher-linux-amd64.tar.gz`：带 Qt 库和 QML 插件，用里面的 `mclauncher.sh` 启动
-- `mclauncher-windows-amd64.zip`：UCRT64 编的窗口和命令行，Qt DLL 由 windeployqt 放在 exe 旁边
+- `mclauncher-linux-amd64`
+- `mclauncher-windows-amd64.exe`
 
-标签会把这两个包挂到 GitHub Release。页面上的 Artifacts 在每次构建后也能下。
+Qt 库、QML 插件和皮肤都在这个文件里。第一次打开会解到用户缓存（Linux `~/.cache/mclauncher`，Windows `%LOCALAPPDATA%\mclauncher`），不需要另外装 Qt，旁边也不用放 DLL。Linux 这个文件是在 Ubuntu 24.04 上编的，系统 glibc 太旧会打不开。
+
+标签会把这两个文件挂到 GitHub Release。每次构建的 Artifacts 里也能下。
 
 ## 配置
 

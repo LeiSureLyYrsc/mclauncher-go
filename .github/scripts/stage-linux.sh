@@ -65,13 +65,13 @@ qml_dir=$(qtpaths6 --query QT_INSTALL_QML)
 plugin_dir=$(qtpaths6 --query QT_INSTALL_PLUGINS)
 for mod in QtQml QtQuick; do
   if [[ -d $qml_dir/$mod ]]; then
-    cp -a "$qml_dir/$mod" "$stage/qml/"
+  cp -aL "$qml_dir/$mod" "$stage/qml/"
   fi
 done
 for plug in platforms imageformats xcbglintegrations platforminputcontexts iconengines; do
   if [[ -d $plugin_dir/$plug ]]; then
     mkdir -p "$stage/plugins/$plug"
-    cp -a "$plugin_dir/$plug/." "$stage/plugins/$plug/"
+    cp -aL "$plugin_dir/$plug/." "$stage/plugins/$plug/"
   fi
 done
 
@@ -107,7 +107,4 @@ export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-xcb}"
 exec "$here/mclauncher" "$@"
 EOF
 chmod +x "$stage/mclauncher.sh" "$stage/mclauncher" "$stage/mclauncher-cli"
-
-mkdir -p dist
-tar -C dist -czf dist/mclauncher-linux-amd64.tar.gz linux
-echo "wrote dist/mclauncher-linux-amd64.tar.gz"
+bash .github/scripts/pack-onefile.sh "$stage" dist/mclauncher-linux-amd64
